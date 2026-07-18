@@ -98,3 +98,10 @@ variable "ami_id" {
   description = "AMI ID to use for EC2 instances"
   default     = "ami-mock"
 }
+
+variable "enable_dns_hostnames" {
+  type        = bool
+  description = "Enable DNS hostnames in the VPC (set to false for local emulation on Vera)"
+  default     = false
+}
+
