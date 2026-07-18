@@ -100,3 +100,9 @@ variable "ec2_desired_capacity" {
   type        = number
   description = "EC2 desired capacity"
 }
+
+variable "ami_id" {
+  type        = string
+  description = "AMI ID to use for EC2 instances"
+  default     = "ami-mock"
+}

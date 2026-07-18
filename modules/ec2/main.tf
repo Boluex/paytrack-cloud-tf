@@ -1,5 +1,6 @@
 data "aws_ssm_parameter" "al2023_ami" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  count = var.ami_id == "" ? 1 : 0
+  name  = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 ############################################
@@ -40,7 +41,7 @@ resource "aws_iam_instance_profile" "ec2" {
 ############################################
 resource "aws_launch_template" "this" {
   name_prefix   = "${var.name_prefix}-lt-"
-  image_id      = data.aws_ssm_parameter.al2023_ami.value
+  image_id      = var.ami_id != "" ? var.ami_id : data.aws_ssm_parameter.al2023_ami[0].value
   instance_type = var.instance_type
   key_name      = var.key_name
   user_data     = base64encode(var.user_data)

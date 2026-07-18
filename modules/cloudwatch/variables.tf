@@ -22,6 +22,12 @@ variable "alb_arn_suffix" {
   default = ""
 }
 
+variable "enable_alb_alarm" {
+  description = "Whether to enable ALB 5xx metric alarms"
+  type        = bool
+  default     = false
+}
+
 variable "sns_alarm_topic_arn" {
   description = "SNS topic ARN to notify on alarm state"
   type        = string

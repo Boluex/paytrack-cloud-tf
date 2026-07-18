@@ -49,7 +49,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
 # ALB 5xx alarm
 ############################################
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
-  count               = var.alb_arn_suffix == "" ? 0 : 1
+  count               = var.enable_alb_alarm ? 1 : 0
   alarm_name          = "${var.name_prefix}-alb-5xx-high"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2

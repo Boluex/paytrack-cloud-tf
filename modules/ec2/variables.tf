@@ -2,6 +2,12 @@ variable "name_prefix" {
   type = string
 }
 
+variable "ami_id" {
+  description = "AMI ID to use for EC2 instances. If empty, looks up latest AL2023 AMI from SSM."
+  type        = string
+  default     = ""
+}
+
 variable "private_subnet_ids" {
   type = list(string)
 }

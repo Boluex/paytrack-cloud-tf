@@ -114,6 +114,7 @@ module "ec2" {
   source = "../../modules/ec2"
 
   name_prefix        = local.name_prefix
+  ami_id             = var.ami_id
   private_subnet_ids = module.vpc.private_subnet_ids
   ec2_sg_id          = module.security_groups.ec2_sg_id
   instance_type      = var.ec2_instance_type
@@ -132,11 +133,12 @@ module "ec2" {
 module "event_processor_lambda" {
   source = "../../modules/lambda"
 
-  name_prefix   = local.name_prefix
-  function_name = "event-processor"
-  source_dir    = "${path.module}/../../lambda-src/event-processor"
-  handler       = "index.handler"
-  runtime       = "nodejs20.x"
+  name_prefix        = local.name_prefix
+  function_name      = "event-processor"
+  source_dir         = "${path.module}/../../lambda-src/event-processor"
+  handler            = "index.handler"
+  runtime            = "nodejs20.x"
+  enable_sqs_trigger = true
 
   sqs_trigger_arn     = module.events.queue_arn
   dynamodb_table_arns = [module.dynamodb_table.table_arn]
@@ -157,6 +159,7 @@ module "cloudwatch" {
   ecs_service_name    = module.ecs.service_name
   asg_name            = module.ec2.asg_name
   alb_arn_suffix      = module.ecs.alb_arn_suffix
+  enable_alb_alarm    = true
   sns_alarm_topic_arn = module.events.topic_arn
 
   tags = local.common_tags

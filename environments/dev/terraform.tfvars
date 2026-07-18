@@ -17,4 +17,6 @@ ec2_instance_type    = "t3.micro"
 ec2_min_size         = 1
 ec2_max_size         = 1
 ec2_desired_capacity = 1
+ami_id               = "ami-mock"
+
 

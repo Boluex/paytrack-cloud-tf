@@ -53,6 +53,12 @@ variable "sqs_trigger_arn" {
   default     = ""
 }
 
+variable "enable_sqs_trigger" {
+  description = "Whether to enable the SQS queue trigger for the Lambda function"
+  type        = bool
+  default     = false
+}
+
 variable "extra_policy_statements" {
   description = "Extra IAM policy statements (list of objects matching aws_iam_policy_document 'statement' shape) as JSON-ready maps"
   type        = list(any)

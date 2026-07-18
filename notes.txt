@@ -1,73 +1,259 @@
 ================================================================================
-LOCAL AWS EMULATION FLOW: MINISTACK & VERA AWS
+PAYTRACK INFRASTRUCTURE ARCHITECTURE & DOCUMENTATION
 ================================================================================
 
-This document details the configuration required to run your Terraform infrastructure 
-locally using a hybrid emulator setup:
-1. Ministack (Port 4566): Emulates S3, SQS, SNS, DynamoDB, Lambda, IAM, STS, 
-   SecretsManager, CloudWatch, etc.
-2. Vera AWS (Port 5003): Emulates EC2 and VPC-related resources (VPC, Subnets, 
-   Route Tables, NAT/Internet Gateways, Security Groups, EC2 instances).
+This document details the modular Terraform architecture of the PayTrack platform, 
+explaining each subdirectory, module, resource configuration, connection flow, 
+and how the hybrid local emulation (Ministack & Vera AWS) and GitHub Actions CI/CD 
+are configured.
 
 --------------------------------------------------------------------------------
-1. PROVIDER ENDPOINT OVERRIDES (providers.tf)
+1. PROJECT HIERARCHY Overview
 --------------------------------------------------------------------------------
-Inside the environment's provider configuration, the AWS provider must route calls to 
-the correct emulator port based on the service name.
-
-Configure your provider "aws" block with:
-- Mock credentials (access_key = "test", secret_key = "test", region = "us-east-1").
-- Local safety flags to skip validations:
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_requesting_account_id  = true
-- An "endpoints" block mapping:
-    - ec2            -> "http://localhost:5003" (Vera AWS)
-    - s3             -> "http://localhost:4566" (Ministack)
-    - dynamodb       -> "http://localhost:4566" (Ministack)
-    - sns            -> "http://localhost:4566" (Ministack)
-    - sqs            -> "http://localhost:4566" (Ministack)
-    - secretsmanager -> "http://localhost:4566" (Ministack)
-    - lambda         -> "http://localhost:4566" (Ministack)
-    - cloudwatch     -> "http://localhost:4566" (Ministack)
-    - iam            -> "http://localhost:4566" (Ministack)
-
---------------------------------------------------------------------------------
-2. REMOTE STATE BACKEND (backend.tf)
---------------------------------------------------------------------------------
-The S3 backend configuration runs before the provider starts and does not share provider 
-endpoints. It must be explicitly configured to target Ministack for state files and locking.
-
-In your backend "s3" block, specify:
-- Bucket and key details.
-- An "endpoints" map directing "s3" and "dynamodb" to Ministack:
-    endpoints = {
-      s3       = "http://localhost:4566"
-      dynamodb = "http://localhost:4566"
-    }
-- Required backend emulation flags:
-    use_path_style              = true
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_requesting_account_id  = true
-    skip_s3_checksum            = true
+.
+├── .github/workflows/
+│   └── terraform.yml          # GitHub Actions CI/CD workflow
+├── environments/              # Environment-specific configuration orchestrations
+│   ├── dev/
+│   ├── staging/
+│   └── prod/
+│       ├── main.tf            # Component orchestration (VPC, ECS, EC2, Lambda, etc.)
+│       ├── providers.tf       # Provider endpoints pointing to local emulators
+│       ├── variables.tf       # Input variable definitions
+│       ├── terraform.tfvars   # Input values specific to the environment
+│       ├── backend.tf         # Remote state backend configuration pointing to S3/DynamoDB
+│       └── outputs.tf         # Key deployment attributes (ALB DNS, DB Table name, etc.)
+├── global/                    # One-time bootstrap and identity management resources
+│   ├── bootstrap/             # Bootstraps S3 state bucket and DynamoDB locking table
+│   └── github-oidc/           # Sets up AWS OIDC connection for passwordless GHA roles
+├── lambda-src/                # Source code for serverless functions
+│   └── event-processor/
+│       └── index.js           # Async SQS event consumer -> DynamoDB processor
+├── modules/                   # Reusable components (Internal Building Blocks)
+│   ├── vpc/                   # Base networking (Subnets, Route Tables, NAT Gateways)
+│   ├── security-groups/       # Security Groups (ALB, ECS, EC2, Lambda)
+│   ├── secrets/               # Secret definitions (Database, App Config)
+│   ├── sns-sqs/               # Messaging / Pub-Sub (SNS topic, SQS queue + DLQ)
+│   ├── dynamodb/              # NoSQL database (Point-In-Time recovery, Streams)
+│   ├── ecs-fargate/           # Container scheduling (ALB, ECS Service, Target Groups)
+│   ├── ec2/                   # Virtual machine fleet (Launch Template, ASG)
+│   ├── lambda/                # Serverless processing (ZIP compilation, Trigger Maps)
+│   └── cloudwatch/            # Metrics Monitoring (Alarms, dashboards)
+├── notes.txt                  # This documentation
+└── .gitignore                 # Excludes build binaries, states, and sensitive secrets
 
 --------------------------------------------------------------------------------
-3. DEVELOPMENT WORKFLOW
+2. INTER-COMPONENT DATA FLOW & CONNECTION
 --------------------------------------------------------------------------------
-1. Start Emulators:
-   - Start Ministack (running on http://localhost:4566)
-   - Start Vera AWS (running on http://localhost:5003)
+The architecture forms a sequential dependency tree:
 
-2. Initial Bootstrap:
-   - Apply global/bootstrap first. Since bootstrap creates the S3 bucket and 
-     DynamoDB lock table, ensure its AWS provider is configured to point S3 and 
-     DynamoDB to http://localhost:4566 (Ministack).
+   [ VPC Module ] (Outputs ID, Cidr, and Subnets)
+         │
+         ├──► [ Security Groups ] (Uses VPC ID to define ingress/egress boundaries)
+         │          │
+         │          ├──► [ ECS Fargate ] (Uses public subnets for ALB, private subnets
+         │          │                     for tasks, and ALB/ECS security groups)
+         │          │
+         │          └──► [ EC2 worker fleet ] (Uses private subnets & EC2 security group)
+         │
+         ├──► [ DynamoDB Table ] (Primary storage, feeds table name/ARN to Lambda & ECS)
+         │
+         ├──► [ SNS-SQS Message Bus ] (Enables pub/sub routing, feeds Queue ARN to Lambda)
+         │
+         ├──► [ Secrets Manager ] (Generates credentials; outputs secret ARNs to ECS)
+         │
+         └──► [ Lambda Processor ] (Processes SQS queues & writes to DynamoDB)
+                    │
+                    └──► [ CloudWatch ,Monitoring ] (Alerts on ECS, ALB, ASG, and Lambda anomalies)
 
-3. Local Operations:
-   - Once bootstrapped, you can run standard Terraform CLI commands (terraform init, 
-     terraform plan, terraform apply) inside your environment folder (e.g., 
-     environments/dev).
-   - Because the endpoints are defined directly in the configuration, you do not 
-     need wrapper scripts like terlocal.
+--------------------------------------------------------------------------------
+3. MODULE-BY-MODULE DETAIL & RESOURCE EXPLANATION
+--------------------------------------------------------------------------------
+
+A. VPC (modules/vpc)
+--------------------------------------------------------------------------------
+Sets up the network foundation.
+- aws_vpc: The primary virtual network.
+- aws_subnet (public & private): Configures subnets across multiple Availability 
+  Zones (AZs) for high availability. 
+  - Public subnets host the Application Load Balancers (ALBs) and NAT Gateways.
+  - Private subnets host the ECS containers, EC2 instances, and Lambda functions.
+- aws_internet_gateway: Gateway enabling inbound/outbound internet traffic for public subnets.
+- aws_nat_gateway: Enabled inside public subnets to allow private subnet resources 
+  to download updates/patches without being exposed directly to inbound traffic.
+  - In dev/staging: A single NAT gateway is shared to save costs (`single_nat_gateway = true`).
+  - In prod: One NAT gateway per AZ is deployed to prevent single-point-of-failure outages.
+- Route Tables & Subnet Associations: Defines the flow of traffic (public -> IGW; private -> NAT).
+
+B. SECURITY GROUPS (modules/security-groups)
+--------------------------------------------------------------------------------
+Enforces the principle of least privilege network access.
+- aws_security_group (alb): Open to ports 80 (HTTP) and 443 (HTTPS) from any IP (`0.0.0.0/0`).
+- aws_security_group (ecs_service): Strictly accepts traffic from the ALB security 
+  group, blocking direct public access.
+- aws_security_group (ec2): Restricted to internal VPC CIDR traffic, with no direct 
+  inbound access from the internet. Remote management is performed via AWS Systems 
+  Manager (SSM) Session Manager (passwordless, ssh-keyless).
+- aws_security_group (lambda): Governs outbound connections for Lambdas running 
+  inside the VPC to access databases or queue endpoints.
+
+C. SECRETS MANAGER (modules/secrets)
+--------------------------------------------------------------------------------
+Manages credential safety.
+- aws_secretsmanager_secret: Declares secret names (e.g. `app-config`, `db-credentials`).
+- aws_secretsmanager_secret_version: Binds actual values to the secret.
+  - Generates cryptographically secure random values for databases if `generate_random` 
+    is enabled.
+  - recovery_window_in_days: Set to 30 days in prod to allow restoration of deleted 
+    secrets, but set to 0 in dev/staging to allow immediate deletion and replacement.
+
+D. SNS & SQS (modules/sns-sqs)
+--------------------------------------------------------------------------------
+Handles pub/sub messaging and asynchronous event queueing.
+- aws_sns_topic: An SNS topic to publish events (e.g., `app-events`). Fully 
+  encrypted using AWS managed keys (`alias/aws/sns`).
+- aws_sqs_queue (Main): An SQS queue that subscribes to the SNS topic. Configured 
+  with a visibility timeout matching or exceeding the downstream processing limit.
+- aws_sqs_queue (DLQ - Dead Letter Queue): Dedicated queue to hold messages that 
+  failed processing after a set number of retries (`maxReceiveCount`). Prevents 
+  "poison pill" messages from clogging the main queue.
+- aws_sns_topic_subscription: Links SQS to SNS for automated message delivery.
+- aws_cloudwatch_metric_alarm: Alerts if any messages land in the DLQ (`ApproximateNumberOfMessagesVisible > 0`).
+
+E. DYNAMODB (modules/dynamodb)
+--------------------------------------------------------------------------------
+Primary NoSQL database.
+- aws_dynamodb_table: Implements a single-table design with Partition Key (`PK`) 
+  and Sort Key (`SK`).
+- Point-In-Time-Recovery (PITR): Enabled to provide continuous backups for disaster 
+  recovery.
+- DynamoDB Streams: Enabled (`NEW_AND_OLD_IMAGES`) to allow downstream Lambda 
+  functions to process data changes reactively.
+
+F. ECS FARGATE (modules/ecs-fargate)
+--------------------------------------------------------------------------------
+Runs containerized microservices serverlessly.
+- aws_ecs_cluster: Logical grouping for ECS tasks.
+- aws_ecs_task_definition: Defines container properties (image tag, CPU/memory 
+  limits, port mappings, environment variables, secrets).
+  - IAM execution role: Grants ECS agent permission to pull ECR images and read Secrets.
+  - IAM task role: Grants the container code permissions to read/write to DynamoDB 
+    or write events to SNS.
+- aws_ecs_service: Configures task desired count and placement inside private subnets.
+- aws_lb (ALB): Public facing load balancer that routes internet traffic to the service.
+- aws_lb_target_group: Group targeting Fargate container IPs for traffic routing.
+- aws_lb_listener: Binds rules for HTTP/HTTPS forwarding.
+- aws_appautoscaling_target & policies: Sets auto-scaling policies to add or remove 
+  tasks based on CPU or memory thresholds.
+
+G. EC2 WORKER FLEET (modules/ec2)
+--------------------------------------------------------------------------------
+Orchestrates worker systems on virtual servers.
+- aws_launch_template: Standardizes instance configurations (AMI, Security Group, 
+  Instance Metadata Options / IMDSv2 enforced, IAM instance profile).
+- aws_autoscaling_group: Automatically provisions instances based on capacity demands.
+- User Data: Boots up instances with initial configurations (e.g., auto-installing 
+  the Amazon CloudWatch Agent).
+- IAM Instance Profile: Grants instances read-only/write access to AWS Systems Manager 
+  (SSM) for remote access without SSH keys.
+
+H. LAMBDA (modules/lambda)
+--------------------------------------------------------------------------------
+Asynchronous micro-processing units.
+- data_archive_file: Dynamically zips the function's source directory on execution.
+- aws_lambda_function: Runs the serverless event processor.
+- aws_lambda_event_source_mapping: Binds the SQS queue as a trigger for the Lambda.
+- IAM permissions: Automatically generated policies granting the function access 
+  to write to DynamoDB and delete successfully processed messages from SQS.
+
+I. CLOUDWATCH (modules/cloudwatch)
+--------------------------------------------------------------------------------
+Health and performance monitor.
+- CPU/Memory Alarms: Fires alerts if ECS or EC2 Auto Scaling Group average utilization 
+  surpasses 80%.
+- ALB 5xx Errors: Monitors target health; alerts if target returns 5xx errors.
+- aws_cloudwatch_dashboard: A consolidated visualization pane displaying metrics 
+  for container CPU/Memory consumption and Load Balancer throughput/failures.
+
+--------------------------------------------------------------------------------
+4. CONFIGURING ENVIRONMENTS & BOOTSTRAP
+--------------------------------------------------------------------------------
+Environments define localized implementations:
+
+1. global/bootstrap:
+   Deploys the root storage bucket (`paytrack-state-121212` or similar) and DynamoDB 
+   lock table (`paytrack-tf-state-lock`) on the AWS account. This must be applied 
+   before environments can initialize their remote state.
+2. global/github-oidc:
+   Establishes OIDC identity provider configurations, allowing GitHub Actions runners 
+   to authenticate and assume AWS roles dynamically, omitting static long-lived keys.
+3. dev, staging, prod:
+   Orchestrate instances of the modules, customizing sizes.
+   - Dev uses 1 ECS instance and a shared NAT gateway.
+   - Prod uses redundant ECS instances across multi-AZ and dedicated NAT gateways.
+
+--------------------------------------------------------------------------------
+5. LOCAL EMULATION SETUP
+--------------------------------------------------------------------------------
+For local development, we configure Terraform to point to local service emulators 
+instead of real AWS. This uses a hybrid emulator configuration:
+
+A. Services Ports Mapping:
+- Vera AWS (Port 5003): Emulates EC2 and VPC-related resources.
+- Ministack (Port 4566): Emulates S3, SQS, SNS, DynamoDB, Lambda, IAM, STS, 
+  SecretsManager, CloudWatch, and ECS.
+
+B. Provider Endpoints Overrides:
+In `providers.tf`, endpoints blocks are configured to route calls appropriately:
+```hcl
+endpoints {
+  ec2                    = "http://localhost:5003"
+  s3                     = "http://localhost:4566"
+  dynamodb               = "http://localhost:4566"
+  sns                    = "http://localhost:4566"
+  sqs                    = "http://localhost:4566"
+  secretsmanager         = "http://localhost:4566"
+  lambda                 = "http://localhost:4566"
+  cloudwatch             = "http://localhost:4566"
+  cloudwatchlogs         = "http://localhost:4566"
+  iam                    = "http://localhost:4566"
+  sts                    = "http://localhost:4566"
+  ssm                    = "http://localhost:4566"
+  ecs                    = "http://localhost:4566"
+  elasticloadbalancingv2 = "http://localhost:4566"
+  applicationautoscaling = "http://localhost:4566"
+  acm                    = "http://localhost:4566"
+  kms                    = "http://localhost:4566"
+}
+```
+
+C. Remote State Backend Overrides:
+The backend configuration must similarly point S3 and DynamoDB to Ministack:
+```hcl
+endpoints = {
+  s3       = "http://localhost:4566"
+  dynamodb = "http://localhost:4566"
+}
+use_path_style              = true
+skip_credentials_validation = true
+skip_metadata_api_check     = true
+skip_requesting_account_id  = true
+skip_s3_checksum            = true
+```
+
+--------------------------------------------------------------------------------
+6. GITHUB ACTIONS CI/CD WORKFLOW
+--------------------------------------------------------------------------------
+The pipeline defined in `.github/workflows/terraform.yml` runs checks automatically:
+
+1. Validate Job: Runs `terraform fmt -check`, `terraform init`, `terraform validate`, 
+   and scans security parameters via Aqua Security's `trivy-action` across dev, 
+   staging, and prod configurations.
+2. Plan Job: Triggered on pull requests to `master`. Compiles execution plans for 
+   all three environments, formatting and posting results directly as PR comments.
+3. Apply Jobs (dev -> staging -> prod): Triggered on pushes to `master`. Runs sequentially, 
+   requiring previous environments to succeed before advancing to staging and 
+   finally production, performing automated state changes.
+4. Manual Dispatch Job: Allows developers to target a specific environment (dev, 
+   staging, prod) to perform manual `plan`, `apply`, or `destroy` runs dynamically.
 ================================================================================

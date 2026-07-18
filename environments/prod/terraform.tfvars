@@ -20,3 +20,4 @@ ec2_instance_type    = "t3.medium"
 ec2_min_size         = 2
 ec2_max_size         = 6
 ec2_desired_capacity = 2
+ami_id               = "ami-mock"
