@@ -18,3 +18,7 @@ crash.*.log
 
 # Ignore transient CLI files
 .terraform.tfstate.lock.info
+
+# Ignore Lambda zip packaging build directory
+**/.build/
+
