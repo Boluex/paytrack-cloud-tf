@@ -49,6 +49,7 @@ provider "aws" {
     ssm                    = "http://localhost:4566"
     ecs                    = "http://localhost:4566"
     elasticloadbalancingv2 = "http://localhost:4566"
+    autoscaling            = "http://localhost:4566"
     applicationautoscaling = "http://localhost:4566"
     acm                    = "http://localhost:4566"
     kms                    = "http://localhost:4566"
