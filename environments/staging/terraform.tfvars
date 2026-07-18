@@ -21,4 +21,5 @@ ec2_min_size         = 1
 ec2_max_size         = 2
 ec2_desired_capacity = 1
 ami_id               = "ami-mock"
-
+enable_dns_hostnames = false
+enable_autoscaling   = false

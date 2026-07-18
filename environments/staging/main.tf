@@ -95,6 +95,8 @@ module "ecs" {
 
   certificate_arn        = var.certificate_arn
   enable_execute_command = var.environment != "prod"
+  enable_autoscaling     = var.enable_autoscaling
+
 
   environment_variables = {
     ENVIRONMENT    = var.environment

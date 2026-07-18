@@ -112,3 +112,9 @@ variable "enable_dns_hostnames" {
   description = "Enable DNS hostnames in the VPC (set to false for local emulation on Vera)"
   default     = false
 }
+
+variable "enable_autoscaling" {
+  type        = bool
+  description = "Enable ECS Autoscaling (set to false for local emulation on Ministack)"
+  default     = false
+}

@@ -95,3 +95,10 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "enable_autoscaling" {
+  description = "Whether to enable ECS service autoscaling"
+  type        = bool
+  default     = false
+}
+

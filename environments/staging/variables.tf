@@ -105,3 +105,10 @@ variable "enable_dns_hostnames" {
   default     = false
 }
 
+variable "enable_autoscaling" {
+  type        = bool
+  description = "Enable ECS Autoscaling (set to false for local emulation on Ministack)"
+  default     = false
+}
+
+
