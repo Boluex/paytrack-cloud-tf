@@ -1,4 +1,4 @@
-environment = "prod"
+environment  = "prod"
 project_name = "paytrack"
 aws_region   = "us-east-1"
 

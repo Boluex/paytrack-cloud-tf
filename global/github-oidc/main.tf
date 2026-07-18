@@ -1,53 +1,53 @@
 terraform {
-    required_version = ">= 1.7.0"
-    required_providers {
-        aws = {
-            source  = "hashicorp/aws"
-            version = "~> 5.0"
-        }
+  required_version = ">= 1.7.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
+  }
 }
 
 provider "aws" {
-    region = var.aws_region
+  region = var.aws_region
 }
 
 variable "aws_region" {
-    type = string
-    default = "us-east-1"
+  type    = string
+  default = "us-east-1"
 }
 
 
 variable "github_org" {
-    type = string
+  type = string
 }
 
 variable "github_repo" {
-    type = string
+  type = string
 }
 
 data "aws_iam_openid_connect_provider" "github" {
-    count= var.create_oidc_provider ? 0 : 1
-    url   = "https://token.actions.githubusercontent.com"
+  count = var.create_oidc_provider ? 0 : 1
+  url   = "https://token.actions.githubusercontent.com"
 }
 
 variable "create_oidc_provider" {
-    type = bool
-    default = false
+  type    = bool
+  default = false
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
-    count= var.create_oidc_provider ? 0 : 1
-    url   = "https://token.actions.githubusercontent.com"
-    client_id_list = [
-        "sts.amazonaws.com",
-    ]
-    thumbprint_list = ["a0719949b06601e66f8d69e40207428b51c14970" 
-    ]
+  count = var.create_oidc_provider ? 0 : 1
+  url   = "https://token.actions.githubusercontent.com"
+  client_id_list = [
+    "sts.amazonaws.com",
+  ]
+  thumbprint_list = ["a0719949b06601e66f8d69e40207428b51c14970"
+  ]
 }
 
 locals {
-    oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
+  oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
 }
 
 resource "aws_iam_role" "github_actions" {
@@ -73,10 +73,10 @@ resource "aws_iam_role" "github_actions" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
-    role = aws_iam_role.github_actions.name
-    policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  role       = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
 output "github_actions_role_arn" {
-    value = aws_iam_role.github_actions.arn
+  value = aws_iam_role.github_actions.arn
 }

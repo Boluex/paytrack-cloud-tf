@@ -1,73 +1,20 @@
-================================================================================
-LOCAL AWS EMULATION FLOW: MINISTACK & VERA AWS
-================================================================================
+# Local .terraform directories
+**/.terraform/*
 
-This document details the configuration required to run your Terraform infrastructure 
-locally using a hybrid emulator setup:
-1. Ministack (Port 4566): Emulates S3, SQS, SNS, DynamoDB, Lambda, IAM, STS, 
-   SecretsManager, CloudWatch, etc.
-2. Vera AWS (Port 5003): Emulates EC2 and VPC-related resources (VPC, Subnets, 
-   Route Tables, NAT/Internet Gateways, Security Groups, EC2 instances).
+# .tfstate files
+*.tfstate
+*.tfstate.*
 
---------------------------------------------------------------------------------
-1. PROVIDER ENDPOINT OVERRIDES (providers.tf)
---------------------------------------------------------------------------------
-Inside the environment's provider configuration, the AWS provider must route calls to 
-the correct emulator port based on the service name.
+# Crash log files
+crash.log
+crash.*.log
 
-Configure your provider "aws" block with:
-- Mock credentials (access_key = "test", secret_key = "test", region = "us-east-1").
-- Local safety flags to skip validations:
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_requesting_account_id  = true
-- An "endpoints" block mapping:
-    - ec2            -> "http://localhost:5003" (Vera AWS)
-    - s3             -> "http://localhost:4566" (Ministack)
-    - dynamodb       -> "http://localhost:4566" (Ministack)
-    - sns            -> "http://localhost:4566" (Ministack)
-    - sqs            -> "http://localhost:4566" (Ministack)
-    - secretsmanager -> "http://localhost:4566" (Ministack)
-    - lambda         -> "http://localhost:4566" (Ministack)
-    - cloudwatch     -> "http://localhost:4566" (Ministack)
-    - iam            -> "http://localhost:4566" (Ministack)
+# Exclude all sensitive variables files
+*.tfvars.auth
+*.tfvars.local
+*.auth.tfvars
+*.local.tfvars
+*local*.tfvars
 
---------------------------------------------------------------------------------
-2. REMOTE STATE BACKEND (backend.tf)
---------------------------------------------------------------------------------
-The S3 backend configuration runs before the provider starts and does not share provider 
-endpoints. It must be explicitly configured to target Ministack for state files and locking.
-
-In your backend "s3" block, specify:
-- Bucket and key details.
-- An "endpoints" map directing "s3" and "dynamodb" to Ministack:
-    endpoints = {
-      s3       = "http://localhost:4566"
-      dynamodb = "http://localhost:4566"
-    }
-- Required backend emulation flags:
-    use_path_style              = true
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_requesting_account_id  = true
-    skip_s3_checksum            = true
-
---------------------------------------------------------------------------------
-3. DEVELOPMENT WORKFLOW
---------------------------------------------------------------------------------
-1. Start Emulators:
-   - Start Ministack (running on http://localhost:4566)
-   - Start Vera AWS (running on http://localhost:5003)
-
-2. Initial Bootstrap:
-   - Apply global/bootstrap first. Since bootstrap creates the S3 bucket and 
-     DynamoDB lock table, ensure its AWS provider is configured to point S3 and 
-     DynamoDB to http://localhost:4566 (Ministack).
-
-3. Local Operations:
-   - Once bootstrapped, you can run standard Terraform CLI commands (terraform init, 
-     terraform plan, terraform apply) inside your environment folder (e.g., 
-     environments/dev).
-   - Because the endpoints are defined directly in the configuration, you do not 
-     need wrapper scripts like terlocal.
-================================================================================
+# Ignore transient CLI files
+.terraform.tfstate.lock.info
