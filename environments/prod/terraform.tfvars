@@ -16,8 +16,6 @@ ecs_max_capacity  = 20
 ecs_task_cpu      = 1024
 ecs_task_memory   = 2048
 
-# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxx" # set for HTTPS
-
 ec2_instance_type    = "t3.medium"
 ec2_min_size         = 2
 ec2_max_size         = 6

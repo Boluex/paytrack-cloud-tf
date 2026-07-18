@@ -17,7 +17,6 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-
 variable "github_org" {
   type = string
 }
@@ -64,7 +63,6 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          # Restrict to a specific repo; add ':ref:refs/heads/main' etc. to lock down further per branch
           "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
         }
       }

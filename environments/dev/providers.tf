@@ -17,11 +17,6 @@ terraform {
   }
 }
 
-############################################
-# AWS Provider — local emulator endpoints
-# EC2/VPC → Vera (port 5003)
-# Everything else → Ministack (port 4566)
-############################################
 provider "aws" {
   region     = var.aws_region
   access_key = "test"

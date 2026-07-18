@@ -7,9 +7,6 @@ locals {
   }
 }
 
-############################################
-# Networking
-############################################
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -31,9 +28,6 @@ module "security_groups" {
   tags        = local.common_tags
 }
 
-############################################
-# Secrets (app config, DB creds)
-############################################
 module "secrets" {
   source = "../../modules/secrets"
 
@@ -54,9 +48,6 @@ module "secrets" {
   tags                    = local.common_tags
 }
 
-############################################
-# Messaging: SNS -> SQS with DLQ
-############################################
 module "events" {
   source = "../../modules/sns-sqs"
 
@@ -66,9 +57,6 @@ module "events" {
   tags        = local.common_tags
 }
 
-############################################
-# DynamoDB
-############################################
 module "dynamodb_table" {
   source = "../../modules/dynamodb"
 
@@ -86,9 +74,6 @@ module "dynamodb_table" {
   tags           = local.common_tags
 }
 
-############################################
-# ECS Fargate (main application)
-############################################
 module "ecs" {
   source = "../../modules/ecs-fargate"
 
@@ -125,9 +110,6 @@ module "ecs" {
   tags = local.common_tags
 }
 
-############################################
-# EC2 (batch/worker fleet)
-############################################
 module "ec2" {
   source = "../../modules/ec2"
 
@@ -147,9 +129,6 @@ module "ec2" {
   tags = local.common_tags
 }
 
-############################################
-# Lambda (async event processor)
-############################################
 module "event_processor_lambda" {
   source = "../../modules/lambda"
 
@@ -170,9 +149,6 @@ module "event_processor_lambda" {
   tags = local.common_tags
 }
 
-############################################
-# CloudWatch: dashboard + alarms
-############################################
 module "cloudwatch" {
   source = "../../modules/cloudwatch"
 

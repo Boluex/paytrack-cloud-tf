@@ -17,7 +17,6 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-
 variable "state_bucket_name" {
   type = string
 }
@@ -26,7 +25,6 @@ variable "lock_table_name" {
   type    = string
   default = "terraform-locks"
 }
-
 
 resource "aws_s3_bucket" "state" {
   bucket = var.state_bucket_name
@@ -41,8 +39,6 @@ resource "aws_s3_bucket_versioning" "state" {
     status = "Enabled"
   }
 }
-
-
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
   bucket = aws_s3_bucket.state.id
