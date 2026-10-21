@@ -1,0 +1,4 @@
+use_local_emulator = true
+ec2_endpoint = "http://localhost:5003"
+aws_endpoint = "http://localhost:4566"
+# Add environment-specific image, network and scaling values here.

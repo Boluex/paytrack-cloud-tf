@@ -19,12 +19,12 @@ terraform {
 
 provider "aws" {
   region     = var.aws_region
-  access_key = "test"
-  secret_key = "test"
+  access_key = var.use_local_emulator ? "test" : null
+  secret_key = var.use_local_emulator ? "test" : null
 
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
+  skip_credentials_validation = var.use_local_emulator
+  skip_metadata_api_check     = var.use_local_emulator
+  skip_requesting_account_id  = var.use_local_emulator
 
   default_tags {
     tags = {
@@ -35,23 +35,23 @@ provider "aws" {
   }
 
   endpoints {
-    ec2                    = "http://localhost:5003"
-    s3                     = "http://localhost:4566"
-    dynamodb               = "http://localhost:4566"
-    sns                    = "http://localhost:4566"
-    sqs                    = "http://localhost:4566"
-    secretsmanager         = "http://localhost:4566"
-    lambda                 = "http://localhost:4566"
-    cloudwatch             = "http://localhost:4566"
-    cloudwatchlogs         = "http://localhost:4566"
-    iam                    = "http://localhost:4566"
-    sts                    = "http://localhost:4566"
-    ssm                    = "http://localhost:4566"
-    ecs                    = "http://localhost:4566"
-    elasticloadbalancingv2 = "http://localhost:4566"
-    autoscaling            = "http://localhost:4566"
-    applicationautoscaling = "http://localhost:4566"
-    acm                    = "http://localhost:4566"
-    kms                    = "http://localhost:4566"
+    ec2                    = var.use_local_emulator ? var.ec2_endpoint : null
+    s3                     = var.use_local_emulator ? var.aws_endpoint : null
+    dynamodb               = var.use_local_emulator ? var.aws_endpoint : null
+    sns                    = var.use_local_emulator ? var.aws_endpoint : null
+    sqs                    = var.use_local_emulator ? var.aws_endpoint : null
+    secretsmanager         = var.use_local_emulator ? var.aws_endpoint : null
+    lambda                 = var.use_local_emulator ? var.aws_endpoint : null
+    cloudwatch             = var.use_local_emulator ? var.aws_endpoint : null
+    cloudwatchlogs         = var.use_local_emulator ? var.aws_endpoint : null
+    iam                    = var.use_local_emulator ? var.aws_endpoint : null
+    sts                    = var.use_local_emulator ? var.aws_endpoint : null
+    ssm                    = var.use_local_emulator ? var.aws_endpoint : null
+    ecs                    = var.use_local_emulator ? var.aws_endpoint : null
+    elasticloadbalancingv2 = var.use_local_emulator ? var.aws_endpoint : null
+    autoscaling            = var.use_local_emulator ? var.aws_endpoint : null
+    applicationautoscaling = var.use_local_emulator ? var.aws_endpoint : null
+    acm                    = var.use_local_emulator ? var.aws_endpoint : null
+    kms                    = var.use_local_emulator ? var.aws_endpoint : null
   }
 }

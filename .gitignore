@@ -22,3 +22,23 @@ crash.*.log
 # Ignore Lambda zip packaging build directory
 **/.build/
 
+# Local credentials and generated files
+.env
+.env.*
+!.env.example
+*.tfvars
+!*.tfvars.example
+.terraform/
+*.tfplan
+tfplan
+*.pem
+*.key
+__pycache__/
+.pytest_cache/
+venv/
+.venv/
+node_modules/
+dist/
+.build/
+secrets.env
+secrets.yaml
